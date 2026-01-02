@@ -1,38 +1,61 @@
 import streamlit as st
+from openai import OpenAI
+
+# Initialize the OpenAI client using the secret you pasted in Streamlit Cloud
+# Make sure the secret name in Streamlit is exactly: OPENAI_API_KEY
 try:
-    from openai import OpenAI
-    import os
-except ImportError as e:
-    st.error(f"Library Import Error: {e}")
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+except Exception as e:
+    st.error("⚠️ API Key missing! Go to App Settings > Secrets and add: OPENAI_API_KEY = 'your_key'")
     st.stop()
 
-st.set_page_config(page_title="AI Interior Designer", layout="centered")
+# Page Configuration
+st.set_page_config(page_title="AI Interior Designer", page_icon="🏡")
 
-# Accessing the API Key safely
-api_key = st.secrets.get("OPENAI_API_KEY")
+st.title("🏡 Smart AI Interior Designer")
+st.info("Input your room details below and let AI design your space.")
 
-if not api_key:
-    st.warning("⚠️ API Key not found! Please add OPENAI_API_KEY to your Streamlit Secrets.")
-    st.stop()
+# --- USER INPUT SECTION ---
+col1, col2 = st.columns(2)
 
-client = OpenAI(api_key=api_key)
+with col1:
+    room_name = st.text_input("What is this room called?", placeholder="e.g. CEO's Office, Cozy Bedroom")
+    room_shape = st.selectbox("Room Shape", ["Square", "Rectangular", "L-Shaped", "Open Floor Plan"])
 
-st.title("🏡 AI Interior Designer")
+with col2:
+    budget = st.select_slider("Select Budget Range", options=["Economy", "Standard", "Premium", "Ultra-Luxury"])
+    theme_color = st.color_picker("Pick a Primary Theme Color", "#3498db")
 
-# Inputs
-room = st.selectbox("Room Type", ["Living Room", "Bedroom", "Kitchen"])
-color = st.color_picker("Pick a primary color", "#00f900")
-style = st.text_input("Design Style", "Modern Minimalist")
-
-if st.button("Generate Design"):
-    with st.spinner("Generating..."):
-        try:
-            prompt = f"A professional 8k interior design of a {room} with {color} color palette, style is {style}."
-            response = client.images.generate(
-                model="dall-e-3",
-                prompt=prompt,
-                n=1
-            )
-            st.image(response.data[0].url)
-        except Exception as e:
-            st.error(f"AI Generation Error: {e}")
+# --- GENERATION LOGIC ---
+if st.button("Generate My Interior Design ✨", use_container_width=True):
+    if not room_name:
+        st.warning("Please give your room a name first!")
+    else:
+        # Constructing the AI Prompt
+        prompt = (
+            f"A high-end, photorealistic 8k interior design for a {room_name}. "
+            f"The room shape is {room_shape}. The design style should reflect a {budget} budget "
+            f"with a color palette focusing on {theme_color}. Professional lighting, "
+            f"detailed textures, architectural photography style."
+        )
+        
+        with st.spinner(f"Designing your {room_name}... This may take 20 seconds."):
+            try:
+                # API Call to DALL-E 3
+                response = client.images.generate(
+                    model="dall-e-3",
+                    prompt=prompt,
+                    n=1,
+                    size="1024x1024",
+                    quality="standard"
+                )
+                
+                # Display the Result
+                image_url = response.data[0].url
+                st.divider()
+                st.subheader(f"✨ Result: {room_name} ({budget} Style)")
+                st.image(image_url, caption=f"AI Interpretation of your {room_shape} {room_name}")
+                st.success("Design Generated Successfully!")
+                
+            except Exception as e:
+                st.error(f"Generation failed: {e}")
