@@ -5,7 +5,7 @@ from PIL import Image
 from io import BytesIO
 
 # ---------------------------------------------------
-# Page Configuration
+# App Configuration
 # ---------------------------------------------------
 st.set_page_config(
     page_title="AI Interior Designer",
@@ -13,11 +13,11 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🏠 AI Interior Designer (Pretrained Model)")
-st.write("Generate a fully designed interior room based on your inputs.")
+st.title("🏠 AI Interior Designer")
+st.write("Generate a fully designed interior room using a pretrained AI model.")
 
 # ---------------------------------------------------
-# Load Pretrained Model
+# Load Pretrained Model (Cached)
 # ---------------------------------------------------
 @st.cache_resource
 def load_model():
@@ -41,21 +41,22 @@ pipe = load_model()
 # ---------------------------------------------------
 def analyze_dimensions(width, length, height):
     area = width * length
+
     if area < 120:
-        size = "small room with space-saving furniture and minimal layout"
+        size_desc = "small room with space-saving furniture"
     elif area < 250:
-        size = "medium-sized room with balanced furniture layout"
+        size_desc = "medium-sized room with balanced layout"
     else:
-        size = "large spacious room with luxury layout and statement furniture"
+        size_desc = "large spacious room with luxury layout"
 
     if height < 9:
         ceiling = "low ceiling with recessed lighting"
     elif height < 11:
         ceiling = "standard ceiling height"
     else:
-        ceiling = "high ceiling with pendant or chandelier lighting"
+        ceiling = "high ceiling with chandelier lighting"
 
-    return f"{size}, {ceiling}"
+    return f"{size_desc}, {ceiling}"
 
 def budget_description(level):
     return {
@@ -72,23 +73,23 @@ Design style based on budget: {budget_description(budget)}.
 Color theme: {color}.
 Room proportions: {dimension_text}.
 
-Highly realistic interior, proper furniture placement,
-soft natural lighting, professional interior visualization,
-wide-angle camera view, ultra-detailed, 4k quality.
+Ultra realistic, professional interior visualization,
+proper furniture placement, soft lighting, wide-angle view,
+high detail, 4K quality.
 """
 
 NEGATIVE_PROMPT = """
-blurry, low quality, cartoon, anime, watermark,
-distorted furniture, bad perspective, cluttered room
+blurry, cartoon, anime, watermark,
+bad perspective, distorted furniture
 """
 
 # ---------------------------------------------------
 # Sidebar Inputs
 # ---------------------------------------------------
-st.sidebar.header("🛠 Room Inputs")
+st.sidebar.header("Room Configuration")
 
 room_name = st.sidebar.selectbox(
-    "Room Name",
+    "Room Type",
     ["Bed Room", "Study Room", "Living Room", "Drawing Room", "Dining Room", "TV Lounge"]
 )
 
@@ -98,11 +99,11 @@ room_shape = st.sidebar.selectbox(
 )
 
 budget = st.sidebar.selectbox(
-    "Budget Status",
+    "Budget Level",
     ["lower", "middle", "higher"]
 )
 
-st.sidebar.subheader("📐 Room Dimensions (feet)")
+st.sidebar.subheader("Room Dimensions (feet)")
 width = st.sidebar.number_input("Width", 6.0, 40.0, 12.0)
 length = st.sidebar.number_input("Length", 6.0, 60.0, 15.0)
 height = st.sidebar.number_input("Height", 7.0, 18.0, 9.0)
@@ -111,28 +112,28 @@ height = st.sidebar.number_input("Height", 7.0, 18.0, 9.0)
 # Main Input
 # ---------------------------------------------------
 color_theme = st.text_input(
-    "🎨 Enter Color Theme",
-    "warm beige and walnut wood"
+    "Color Theme",
+    "modern neutral tones with wooden accents"
 )
 
 # ---------------------------------------------------
-# Prompt Generation
+# Prompt Creation
 # ---------------------------------------------------
 dimension_text = analyze_dimensions(width, length, height)
 prompt = build_prompt(room_name, room_shape, budget, color_theme, dimension_text)
 
-st.subheader("🧠 Design Prompt (Auto Generated)")
+st.subheader("Generated Design Prompt")
 st.code(prompt)
 
 # ---------------------------------------------------
-# Generate Image
+# Image Generation
 # ---------------------------------------------------
-if st.button("🎨 Generate Designed Room"):
+if st.button("Generate Interior Design"):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     generator = torch.Generator(device=device).manual_seed(42)
 
     with st.spinner("Generating interior design..."):
-        result = pipe(
+        output = pipe(
             prompt=prompt,
             negative_prompt=NEGATIVE_PROMPT,
             num_inference_steps=35,
@@ -140,7 +141,7 @@ if st.button("🎨 Generate Designed Room"):
             generator=generator
         )
 
-        image: Image.Image = result.images[0]
+        image: Image.Image = output.images[0]
 
     st.image(
         image,
@@ -152,8 +153,8 @@ if st.button("🎨 Generate Designed Room"):
     image.save(buffer, format="PNG")
 
     st.download_button(
-        "⬇ Download Image",
+        "Download Image",
         data=buffer.getvalue(),
-        file_name="interior_design.png",
+        file_name="ai_interior_design.png",
         mime="image/png"
     )
