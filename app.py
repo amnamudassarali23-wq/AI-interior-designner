@@ -1,40 +1,41 @@
 import streamlit as st
 import torch
+import random
 from diffusers import StableDiffusionXLPipeline, StableDiffusionPipeline
 from PIL import Image
 from io import BytesIO
-import random
 
 # ---------------------------------------------------
-# App Configuration
+# 1. App Configuration
 # ---------------------------------------------------
 st.set_page_config(page_title="AI Interior Designer", page_icon="🏠", layout="wide")
 
 st.title("🏠 AI Interior Designer")
-st.write("Professional interior visualization. (Note: Initial load takes ~2 mins)")
+st.write("Generate interior designs. (Cloud setup takes 3-5 mins after first reboot)")
 
 # ---------------------------------------------------
-# Model Loader (Memory Optimized for Cloud)
+# 2. Memory-Safe Model Loader
 # ---------------------------------------------------
 @st.cache_resource
 def load_model():
     use_cuda = torch.cuda.is_available()
     
+    # FIX: Check if we are in a low-RAM cloud environment
     if use_cuda:
-        # High-quality model if you have a GPU (Local)
+        # High Quality SDXL for Local GPU
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         pipe = StableDiffusionXLPipeline.from_pretrained(
             model_id, torch_dtype=torch.float16, use_safetensors=True
         )
         pipe.to("cuda")
     else:
-        # LIGHTWEIGHT MODEL for Streamlit Cloud (CPU) to prevent crashes
+        # Light Model for Streamlit Cloud (Prevents Crashing)
         model_id = "runwayml/stable-diffusion-v1-5" 
         pipe = StableDiffusionPipeline.from_pretrained(
             model_id, torch_dtype=torch.float32
         )
         pipe.to("cpu")
-        # Optimization for low RAM
+        # Optimization to use less RAM
         pipe.enable_attention_slicing()
 
     pipe.set_progress_bar_config(disable=True)
@@ -43,15 +44,15 @@ def load_model():
 try:
     pipe, device_type = load_model()
 except Exception as e:
-    st.error(f"Model failed to load: {e}. Ensure requirements.txt is present on GitHub.")
+    st.error(f"Waiting for dependencies... If you just added requirements.txt, please REBOOT the app in Streamlit Cloud. Error: {e}")
     st.stop()
 
 # ---------------------------------------------------
-# Sidebar & UI
+# 3. Sidebar Configuration
 # ---------------------------------------------------
-st.sidebar.header("Room Configuration")
-room_name = st.sidebar.selectbox("Room Type", ["Living Room", "Study Room", "Bedroom", "Dining Room"])
-budget = st.sidebar.selectbox("Budget Style", ["Lower (Simple)", "Middle (Modern)", "Higher (Luxury)"])
+st.sidebar.header("Room Settings")
+room_name = st.sidebar.selectbox("Room Type", ["Study Room", "Living Room", "Bedroom", "Dining Room"])
+budget = st.sidebar.selectbox("Budget Style", ["Lower", "Middle", "Higher"])
 
 st.sidebar.subheader("Dimensions (ft)")
 w = st.sidebar.slider("Width", 6, 40, 12)
@@ -61,19 +62,19 @@ h = st.sidebar.slider("Height", 7, 18, 9)
 color_theme = st.text_input("Color Theme", "modern warm wood and white")
 
 # ---------------------------------------------------
-# Execution
+# 4. Design Generation Logic
 # ---------------------------------------------------
 if st.button("Generate Design"):
     seed = random.randint(0, 10**6)
     generator = torch.Generator(device=device_type).manual_seed(seed)
     
-    # Fewer steps on Cloud/CPU to avoid timing out
+    # Fewer steps on Cloud/CPU to prevent timeouts
     steps = 20 if device_type == "cpu" else 35
 
     with st.spinner(f"Designing your {room_name} on {device_type.upper()}..."):
-        # Stronger prompt engineering to force interior view
+        # Explicit prompt to stay INSIDE
         prompt = f"(Interior shot of the INSIDE of a {room_name}), looking from within the room. "\
-                 f"Dimensions: {w}x{l}ft, {h}ft ceiling. Style: {budget}. Theme: {color_theme}. "\
+                 f"Layout: {w}x{l}ft, {h}ft ceiling. Style: {budget} budget. Theme: {color_theme}. "\
                  f"Professional lighting, 8k resolution, highly detailed."
         
         neg_prompt = "exterior, house facade, grass, trees, sky, roof, blurry, messy, distorted"
@@ -91,4 +92,4 @@ if st.button("Generate Design"):
         # Download logic
         buf = BytesIO()
         image.save(buf, format="PNG")
-        st.download_button("Download Image", buf.getvalue(), "interior_design.png", "image/png")
+        st.download_button("Download Image", buf.getvalue(), f"{room_name.lower()}_design.png", "image/png")
