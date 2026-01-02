@@ -4,110 +4,100 @@ from diffusers import StableDiffusionXLPipeline, StableDiffusionPipeline
 from PIL import Image
 from io import BytesIO
 import random
-import os
 
 # ---------------------------------------------------
 # App Configuration
 # ---------------------------------------------------
-st.set_page_config(
-    page_title="AI Interior Designer",
-    page_icon="🏠",
-    layout="wide"
-)
+st.set_page_config(page_title="AI Interior Designer", page_icon="🏠", layout="wide")
 
 st.title("🏠 AI Interior Designer")
-st.write("Generate professional interior designs. Note: Cloud generation may take 2-4 minutes.")
+st.write("Professional interior visualization powered by AI.")
 
 # ---------------------------------------------------
-# Load Model (Optimized for Cloud RAM)
+# Model Loader (Memory Optimized)
 # ---------------------------------------------------
 @st.cache_resource
 def load_model():
-    # If on Streamlit Cloud (CPU), we use a lighter model to prevent crashing
-    # If you have a GPU (Local), it uses the high-quality SDXL
+    # Detect if we have a GPU (Local) or just CPU (Cloud)
     use_cuda = torch.cuda.is_available()
     
     if use_cuda:
+        # High-quality model for GPU
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         pipe = StableDiffusionXLPipeline.from_pretrained(
             model_id, torch_dtype=torch.float16, use_safetensors=True
         )
         pipe.to("cuda")
     else:
-        # LIGHTWEIGHT MODEL FOR CLOUD
+        # Lighter model for Cloud/CPU to stay under 1GB RAM limit
         model_id = "runwayml/stable-diffusion-v1-5" 
         pipe = StableDiffusionPipeline.from_pretrained(
             model_id, torch_dtype=torch.float32
         )
         pipe.to("cpu")
-        # Critical for low-RAM environments:
+        # Magic command to save memory:
         pipe.enable_attention_slicing()
 
     pipe.set_progress_bar_config(disable=True)
     return pipe, "cuda" if use_cuda else "cpu"
 
 try:
-    pipe, device_type = load_model()
+    pipe, device = load_model()
 except Exception as e:
-    st.error(f"Error loading AI model: {e}")
+    st.error(f"Failed to load AI: {e}. If on Cloud, the model might be too large for the 1GB RAM limit.")
     st.stop()
 
 # ---------------------------------------------------
-# Logic Functions
+# Helper Logic
 # ---------------------------------------------------
-def build_prompt(room, shape, budget, color, width, length, height):
-    area = width * length
-    size_desc = "small" if area < 120 else "spacious"
-    ceiling = "high ceilings" if height > 10 else "standard ceilings"
-    
-    return f"""
-    (Interior shot of the INSIDE of a {room}), (looking from within the room). 
-    Indoor photography, {shape} layout, {size_desc} size, {ceiling}. 
-    Style: {budget} budget design, {color} color palette. 
-    Professional lighting, 8k resolution, highly detailed furniture.
-    """
-
-NEGATIVE_PROMPT = "exterior, house facade, grass, trees, sky, roof, blurry, messy, distorted, watermark"
+def get_room_desc(w, l, h):
+    area = w * l
+    size = "small" if area < 120 else "spacious"
+    ceiling = "high ceilings" if h > 10 else "standard"
+    return f"{size} room with {ceiling}"
 
 # ---------------------------------------------------
-# Sidebar & UI
+# UI Sidebar
 # ---------------------------------------------------
 st.sidebar.header("Room Settings")
-room_name = st.sidebar.selectbox("Room Type", ["Living Room", "Study Room", "Bedroom", "Dining Room"])
-room_shape = st.sidebar.selectbox("Shape", ["Square", "Rectangle", "L-Shape"])
-budget = st.sidebar.selectbox("Budget", ["lower", "middle", "higher"])
+room_type = st.sidebar.selectbox("Room", ["Living Room", "Study Room", "Bedroom", "TV Lounge"])
+budget = st.sidebar.selectbox("Budget Style", ["lower", "middle", "higher"])
+width = st.sidebar.slider("Width (ft)", 6, 40, 12)
+length = st.sidebar.slider("Length (ft)", 6, 60, 15)
+height = st.sidebar.slider("Height (ft)", 7, 18, 9)
 
-st.sidebar.subheader("Dimensions (ft)")
-w = st.sidebar.slider("Width", 6, 40, 12)
-l = st.sidebar.slider("Length", 6, 60, 15)
-h = st.sidebar.slider("Height", 7, 18, 9)
-
-color_theme = st.text_input("Color Theme", "modern warm wood and white")
+color_theme = st.text_input("Color Theme", "modern oak wood and cream")
 
 # ---------------------------------------------------
-# Execution
+# Generation
 # ---------------------------------------------------
 if st.button("Generate Design"):
-    seed = random.randint(0, 10**6)
-    generator = torch.Generator(device=device_type).manual_seed(seed)
+    seed = random.randint(0, 999999)
+    generator = torch.Generator(device=device).manual_seed(seed)
     
-    # Cloud (CPU) needs fewer steps to avoid timeout
-    steps = 20 if device_type == "cpu" else 35
+    # We use fewer steps on CPU to avoid time-outs
+    num_steps = 20 if device == "cpu" else 35
 
-    with st.spinner(f"Generating your {room_name} on {device_type.upper()}..."):
-        prompt = build_prompt(room_name, room_shape, budget, color_theme, w, l, h)
-        
+    with st.spinner(f"Designing your {room_type}... (Running on {device.upper()})"):
+        prompt = f"""
+        (Interior view of the INSIDE of a {room_type}), (looking from within the room).
+        {get_room_desc(width, length, height)}. Style: {budget} budget.
+        Theme: {color_theme}. Highly detailed, 8k, professional interior photography.
+        """
+        negative = "exterior, house facade, grass, trees, sky, roof, blurry, distorted"
+
         image = pipe(
             prompt=prompt,
-            negative_prompt=NEGATIVE_PROMPT,
-            num_inference_steps=steps,
+            negative_prompt=negative,
+            num_inference_steps=num_steps,
             guidance_scale=7.5,
             generator=generator
         ).images[0]
 
-        st.image(image, caption=f"Design for {room_name} (Seed: {seed})", use_container_width=True)
-        
-        # Download button
+        st.image(image, caption=f"{room_type} Design (Seed: {seed})", use_container_width=True)
+
+        # Download logic
         buf = BytesIO()
         image.save(buf, format="PNG")
-        st.download_button("Download Image", buf.getvalue(), "design.png", "image/png")
+        st.download_button("Download PNG", buf.getvalue(), f"{room_type}.png", "image/png")
+        
