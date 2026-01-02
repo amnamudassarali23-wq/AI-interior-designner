@@ -11,93 +11,84 @@ import random
 st.set_page_config(page_title="AI Interior Designer", page_icon="🏠", layout="wide")
 
 st.title("🏠 AI Interior Designer")
-st.write("Professional interior visualization powered by AI.")
+st.write("Professional interior visualization. (Note: Initial load takes ~2 mins)")
 
 # ---------------------------------------------------
-# Model Loader (Memory Optimized)
+# Model Loader (Memory Optimized for Cloud)
 # ---------------------------------------------------
 @st.cache_resource
 def load_model():
-    # Detect if we have a GPU (Local) or just CPU (Cloud)
     use_cuda = torch.cuda.is_available()
     
     if use_cuda:
-        # High-quality model for GPU
+        # High-quality model if you have a GPU (Local)
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         pipe = StableDiffusionXLPipeline.from_pretrained(
             model_id, torch_dtype=torch.float16, use_safetensors=True
         )
         pipe.to("cuda")
     else:
-        # Lighter model for Cloud/CPU to stay under 1GB RAM limit
+        # LIGHTWEIGHT MODEL for Streamlit Cloud (CPU) to prevent crashes
         model_id = "runwayml/stable-diffusion-v1-5" 
         pipe = StableDiffusionPipeline.from_pretrained(
             model_id, torch_dtype=torch.float32
         )
         pipe.to("cpu")
-        # Magic command to save memory:
+        # Optimization for low RAM
         pipe.enable_attention_slicing()
 
     pipe.set_progress_bar_config(disable=True)
     return pipe, "cuda" if use_cuda else "cpu"
 
 try:
-    pipe, device = load_model()
+    pipe, device_type = load_model()
 except Exception as e:
-    st.error(f"Failed to load AI: {e}. If on Cloud, the model might be too large for the 1GB RAM limit.")
+    st.error(f"Model failed to load: {e}. Ensure requirements.txt is present on GitHub.")
     st.stop()
 
 # ---------------------------------------------------
-# Helper Logic
+# Sidebar & UI
 # ---------------------------------------------------
-def get_room_desc(w, l, h):
-    area = w * l
-    size = "small" if area < 120 else "spacious"
-    ceiling = "high ceilings" if h > 10 else "standard"
-    return f"{size} room with {ceiling}"
+st.sidebar.header("Room Configuration")
+room_name = st.sidebar.selectbox("Room Type", ["Living Room", "Study Room", "Bedroom", "Dining Room"])
+budget = st.sidebar.selectbox("Budget Style", ["Lower (Simple)", "Middle (Modern)", "Higher (Luxury)"])
+
+st.sidebar.subheader("Dimensions (ft)")
+w = st.sidebar.slider("Width", 6, 40, 12)
+l = st.sidebar.slider("Length", 6, 60, 15)
+h = st.sidebar.slider("Height", 7, 18, 9)
+
+color_theme = st.text_input("Color Theme", "modern warm wood and white")
 
 # ---------------------------------------------------
-# UI Sidebar
-# ---------------------------------------------------
-st.sidebar.header("Room Settings")
-room_type = st.sidebar.selectbox("Room", ["Living Room", "Study Room", "Bedroom", "TV Lounge"])
-budget = st.sidebar.selectbox("Budget Style", ["lower", "middle", "higher"])
-width = st.sidebar.slider("Width (ft)", 6, 40, 12)
-length = st.sidebar.slider("Length (ft)", 6, 60, 15)
-height = st.sidebar.slider("Height (ft)", 7, 18, 9)
-
-color_theme = st.text_input("Color Theme", "modern oak wood and cream")
-
-# ---------------------------------------------------
-# Generation
+# Execution
 # ---------------------------------------------------
 if st.button("Generate Design"):
-    seed = random.randint(0, 999999)
-    generator = torch.Generator(device=device).manual_seed(seed)
+    seed = random.randint(0, 10**6)
+    generator = torch.Generator(device=device_type).manual_seed(seed)
     
-    # We use fewer steps on CPU to avoid time-outs
-    num_steps = 20 if device == "cpu" else 35
+    # Fewer steps on Cloud/CPU to avoid timing out
+    steps = 20 if device_type == "cpu" else 35
 
-    with st.spinner(f"Designing your {room_type}... (Running on {device.upper()})"):
-        prompt = f"""
-        (Interior view of the INSIDE of a {room_type}), (looking from within the room).
-        {get_room_desc(width, length, height)}. Style: {budget} budget.
-        Theme: {color_theme}. Highly detailed, 8k, professional interior photography.
-        """
-        negative = "exterior, house facade, grass, trees, sky, roof, blurry, distorted"
+    with st.spinner(f"Designing your {room_name} on {device_type.upper()}..."):
+        # Stronger prompt engineering to force interior view
+        prompt = f"(Interior shot of the INSIDE of a {room_name}), looking from within the room. "\
+                 f"Dimensions: {w}x{l}ft, {h}ft ceiling. Style: {budget}. Theme: {color_theme}. "\
+                 f"Professional lighting, 8k resolution, highly detailed."
+        
+        neg_prompt = "exterior, house facade, grass, trees, sky, roof, blurry, messy, distorted"
 
         image = pipe(
             prompt=prompt,
-            negative_prompt=negative,
-            num_inference_steps=num_steps,
+            negative_prompt=neg_prompt,
+            num_inference_steps=steps,
             guidance_scale=7.5,
             generator=generator
         ).images[0]
 
-        st.image(image, caption=f"{room_type} Design (Seed: {seed})", use_container_width=True)
-
+        st.image(image, caption=f"Design for {room_name} (Seed: {seed})", use_container_width=True)
+        
         # Download logic
         buf = BytesIO()
         image.save(buf, format="PNG")
-        st.download_button("Download PNG", buf.getvalue(), f"{room_type}.png", "image/png")
-        
+        st.download_button("Download Image", buf.getvalue(), "interior_design.png", "image/png")
