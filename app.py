@@ -44,7 +44,7 @@ def analyze_dimensions(width, length, height):
     area = width * length
 
     if area < 120:
-        size_desc = "small room with space-saving furniture"
+        size_desc = "small compact room with space-saving furniture"
     elif area < 250:
         size_desc = "medium-sized room with balanced layout"
     else:
@@ -55,7 +55,7 @@ def analyze_dimensions(width, length, height):
     elif height < 11:
         ceiling = "standard ceiling height"
     else:
-        ceiling = "high ceiling with chandelier lighting"
+        ceiling = "high ceiling with luxury lighting"
 
     return f"{size_desc}, {ceiling}"
 
@@ -67,22 +67,23 @@ def budget_description(level):
     }[level]
 
 def build_prompt(room, shape, budget, color, dimension_text):
+    # Added "Interior shot of the INSIDE" to force indoor view
     return f"""
-Photorealistic interior design of a fully furnished {room}.
-Room shape: {shape}.
-Design style based on budget: {budget_description(budget)}.
+(Interior shot of the INSIDE of a {room}), (looking from within the room).
+Indoor photography, room shape: {shape}.
+Style: {budget_description(budget)}.
 Color theme: {color}.
 Room proportions: {dimension_text}.
-
-Ultra realistic, professional interior visualization,
-proper furniture placement, soft lighting, wide-angle view,
-high detail, 4K quality.
+Highly detailed furniture, professional interior design, 
+wide-angle lens, soft indoor lighting, 8k resolution, cinematic.
 """
 
+# Hardened Negative Prompt to block exterior shots
 NEGATIVE_PROMPT = """
-blurry, cartoon, anime, watermark,
-bad perspective, distorted furniture, 
-messy, low resolution, grainy
+exterior, outside, house facade, building exterior, street, trees, 
+grass, sky, roof, garden, backyard, blurry, cartoon, anime, 
+watermark, bad perspective, distorted furniture, messy, 
+low resolution, grainy, fisheye lens
 """
 
 # ---------------------------------------------------
@@ -92,7 +93,7 @@ st.sidebar.header("Room Configuration")
 
 room_name = st.sidebar.selectbox(
     "Room Type",
-    ["Bed Room", "Study Room", "Living Room", "Drawing Room", "Dining Room", "TV Lounge"]
+    ["Study Room", "Bed Room", "Living Room", "Drawing Room", "Dining Room", "TV Lounge"]
 )
 
 room_shape = st.sidebar.selectbox(
@@ -124,7 +125,8 @@ color_theme = st.text_input(
 dimension_text = analyze_dimensions(width, length, height)
 prompt = build_prompt(room_name, room_shape, budget, color_theme, dimension_text)
 
-st.subheader("Generated Design Prompt")
+st.subheader("Current Design Prompt")
+st.info(f"The AI is instructed to stay INSIDE the {room_name}.")
 st.code(prompt)
 
 # ---------------------------------------------------
@@ -133,16 +135,16 @@ st.code(prompt)
 if st.button("Generate Interior Design"):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    # Generate a random seed for variety
+    # Random seed to ensure different results each time
     current_seed = random.randint(0, 10**6)
     generator = torch.Generator(device=device).manual_seed(current_seed)
 
-    with st.spinner(f"Generating interior design (Seed: {current_seed})..."):
+    with st.spinner(f"Designing your {room_name}..."):
         output = pipe(
             prompt=prompt,
             negative_prompt=NEGATIVE_PROMPT,
-            num_inference_steps=35,
-            guidance_scale=7.5,
+            num_inference_steps=40, # Increased steps for better detail
+            guidance_scale=8.5,     # Increased guidance to follow the prompt strictly
             generator=generator
         )
 
@@ -150,7 +152,7 @@ if st.button("Generate Interior Design"):
 
     st.image(
         image,
-        caption=f"{room_name} | {room_shape} | Budget: {budget} | Seed: {current_seed}",
+        caption=f"Generated {room_name} (Seed: {current_seed})",
         use_container_width=True
     )
 
@@ -158,8 +160,8 @@ if st.button("Generate Interior Design"):
     image.save(buffer, format="PNG")
 
     st.download_button(
-        "Download Image",
+        "Download Design",
         data=buffer.getvalue(),
-        file_name=f"design_{current_seed}.png",
+        file_name=f"{room_name.lower()}_design.png",
         mime="image/png"
     )
