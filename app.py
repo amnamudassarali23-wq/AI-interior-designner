@@ -1,79 +1,37 @@
 import streamlit as st
-import cv2
-import numpy as np
-from PIL import Image
-import torch
+from openai import OpenAI
 
-# --- APP CONFIGURATION ---
-st.set_page_config(page_title="AI Interior Designer", layout="wide")
+# Initialize client (Assuming OpenAI)
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Custom CSS for styling
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #4A90E2; color: white; }
-    </style>
-    """, unsafe_allow_stdio=True)
+st.title("🏡 AI Dream Room Designer")
 
-st.title("🎨 AI Interior Designer")
-st.write("Transform your room using AI logic and style mapping.")
-
-# --- SIDEBAR: USER INPUTS ---
+# Sidebar for Requirements
 with st.sidebar:
-    st.header("Step 1: Room Details")
-    room_shape = st.selectbox("Room Shape", ["Rectangular", "Square", "L-Shaped", "Irregular"])
-    room_type = st.selectbox("Room Type", ["Bedroom", "TV Room", "Study Room", "Kitchen", "Living Room"])
+    st.header("Room Specifications")
+    room_type = st.selectbox("Room Type", ["Living Room", "Bedroom", "Office", "Kitchen"])
+    shape = st.selectbox("Room Shape", ["Rectangular", "Square", "L-Shaped"])
+    dim_w = st.number_input("Width (ft)", value=12)
+    dim_l = st.number_input("Length (ft)", value=15)
     
-    st.header("Step 2: Budget & Style")
-    cost_tier = st.radio("Price Category", ["Low Cost (Basic)", "Middle Case (Modern)", "Best (Luxury)"])
+    st.header("Aesthetics")
+    primary_color = st.color_picker("Primary Color", "#F0F0F0")
+    contrast_color = st.color_picker("Contrast Color", "#2F4F4F")
+    style = st.text_input("Style (e.g., Mid-century Modern, Minimalist)", "Modern")
+
+if st.button("Generate Design"):
+    # Combine inputs into a detailed prompt
+    prompt = f"A professional interior design photo of a {shape} {room_type}, " \
+             f"dimensions approximately {dim_w}x{dim_l} feet. " \
+             f"The color palette is based on {primary_color} with {contrast_color} accents. " \
+             f"Style: {style}. Highly detailed, 8k resolution, photorealistic."
     
-    st.header("Step 3: Colors")
-    color1 = st.color_picker("Primary Color", "#FFFFFF")
-    color2 = st.color_picker("Secondary Color", "#3498DB")
-
-# --- MAIN AREA: PHOTO UPLOAD ---
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("Upload Room Photo")
-    uploaded_file = st.file_uploader("Choose a JPG or PNG image", type=["jpg", "jpeg", "png"])
-    
-    if uploaded_file:
-        img = Image.open(uploaded_file).convert("RGB")
-        st.image(img, caption="Original Room", use_container_width=True)
-
-with col2:
-    st.subheader("AI Design Result")
-    if uploaded_file:
-        if st.button("Generate Design"):
-            with st.spinner("AI is analyzing room edges and applying style..."):
-                
-                # LOGIC: Mapping Cost to Prompt Keywords
-                styles = {
-                    "Low Cost (Basic)": "minimalist, simple functional furniture, IKEA style, clean lines",
-                    "Middle Case (Modern)": "contemporary, high-quality wood, designer lighting, cozy textures",
-                    "Best (Luxury)": "ultra-luxury, marble floors, gold accents, premium velvet, chandelier"
-                }
-                
-                # BUILDING THE PROMPT
-                prompt = f"A {room_type} in {room_shape} shape. Colors: {color1} & {color2}. Style: {styles[cost_tier]}. 8k resolution."
-                
-                st.info(f"**AI Logic Generated:** {prompt}")
-                
-                # VISION SIMULATION (RECOGNITION)
-                # In a real local GPU setup, we'd run: cv2.Canny(image, 100, 200)
-                st.success("Recognition Complete: Room boundaries identified.")
-                
-                # DISPLAY PLACEHOLDER (Streamlit Cloud has limited RAM for real SD models)
-                st.image("https://via.placeholder.com/800x600.png?text=Generated+Design+Preview", use_container_width=True)
-    else:
-        st.info("Please upload a photo to start the AI redesign.")
-
-# --- TECHNICAL EXPLANATION ---
-with st.expander("See How This Works"):
-    st.write(f"""
-    - **UI:** Built with Streamlit.
-    - **Logic:** Python maps your budget ({cost_tier}) to specific architectural keywords.
-    - **Recognition:** OpenCV (cv2) finds the edges of your {room_shape} walls.
-    - **Generation:** Stable Diffusion (Diffusers) paints the new {room_type} pixels.
-    """)
+    with st.spinner("Designing your space..."):
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            n=1,
+            size="1024x1024"
+        )
+        image_url = response.data[0].url
+        st.image(image_url, caption=f"Your {style} {room_type}")
