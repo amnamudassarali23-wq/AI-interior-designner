@@ -1,5 +1,11 @@
 import streamlit as st
-import torch
+try:
+    import torch
+except ModuleNotFoundError:
+    import subprocess
+    subprocess.check_call(["pip", "install", "torch"])
+    import torch
+
 from diffusers import StableDiffusionXLPipeline
 from PIL import Image
 from io import BytesIO
