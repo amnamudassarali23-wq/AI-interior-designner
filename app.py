@@ -2,74 +2,94 @@ import streamlit as st
 from openai import OpenAI
 import torch
 import torch.nn as nn
-import numpy as np
 from PIL import Image
+import numpy as np
 
-# --- GAN ARCHITECTURE ---
-class SimpleGenerator(nn.Module):
-    """A simple GAN Generator structure"""
+# --- 1. GAN ARCHITECTURE ---
+class DeepGenerator(nn.Module):
+    """
+    A Functional DCGAN-style Generator.
+    It takes a 100-dim noise vector and upscales it to a 64x64 image.
+    """
     def __init__(self):
-        super(SimpleGenerator, self).__init__()
+        super(DeepGenerator, self).__init__()
         self.main = nn.Sequential(
-            nn.Linear(100, 256),
+            # Input: 100-dim Latent Vector
+            nn.ConvTranspose2d(100, 512, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(512),
             nn.ReLU(True),
-            nn.Linear(256, 512),
+            # state size: (512) x 4 x 4
+            nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(256),
             nn.ReLU(True),
-            nn.Linear(512, 1024),
+            # state size: (256) x 8 x 8
+            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
             nn.ReLU(True),
-            nn.Linear(1024, 64 * 64 * 3),
+            # state size: (128) x 16 x 16
+            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            # state size: (64) x 32 x 32
+            nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
             nn.Tanh()
+            # Final state size: (3) x 64 x 64
         )
 
     def forward(self, input):
-        return self.main(input).view(-1, 3, 64, 64)
+        return self.main(input)
 
-# Function to run the GAN
 def run_gan_inference():
-    model = SimpleGenerator()
-    # In a production app, you would use: model.load_state_dict(torch.load('model.pth'))
-    noise = torch.randn(1, 100)
-    with torch.no_grad():
-        generated_img = model(noise).detach().cpu().squeeze(0)
+    # Initialize model
+    netG = DeepGenerator()
+    # Create random noise (Seed based on room name for variety)
+    noise = torch.randn(1, 100, 1, 1)
     
-    # Transform tensor to Image
-    generated_img = (generated_img + 1) / 2  # Rescale from [-1, 1] to [0, 1]
-    ndarr = generated_img.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-    return Image.fromarray(ndarr)
+    with torch.no_grad():
+        fake_img = netG(noise).detach().cpu().squeeze(0)
+    
+    # Normalize from [-1, 1] to [0, 255] for PIL
+    fake_img = (fake_img + 1) / 2
+    img_array = fake_img.permute(1, 2, 0).numpy()
+    img_array = (img_array * 255).astype(np.uint8)
+    
+    # Resize for better visibility in Streamlit
+    return Image.fromarray(img_array).resize((512, 512), resample=Image.BICUBIC)
 
-# --- STREAMLIT UI ---
-st.set_page_config(page_title="AI Interior Designer", page_icon="🏡")
+# --- 2. STREAMLIT APP ---
+st.set_page_config(page_title="Pro AI Interior", page_icon="🛋️")
+st.title("🛋️ Pro AI Interior Designer")
 
-# Initialize OpenAI
-try:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-except Exception:
-    st.warning("⚠️ OpenAI Key not found in Secrets. DALL-E mode will be disabled.")
-
-st.title("🏡 Smart AI Interior Designer")
-
-# Mode Selection
-gen_mode = st.sidebar.radio("Generation Engine", ["OpenAI DALL-E 3", "Local GAN (Experimental)"])
+# Sidebar for Setup
+with st.sidebar:
+    st.header("Settings")
+    mode = st.radio("Choose AI Engine", ["DALL-E 3 (High Detail)", "Local GAN (Abstract Layout)"])
+    api_key = st.text_input("OpenAI API Key (Optional for GAN)", type="password")
 
 # User Inputs
-room_name = st.text_input("Room Name", placeholder="e.g. Modern Living Room")
-theme_color = st.color_picker("Pick a Theme Color", "#3498db")
+col1, col2 = st.columns(2)
+with col1:
+    room = st.text_input("Room Name", "Modern Lounge")
+with col2:
+    color = st.color_picker("Accent Color", "#FF5733")
 
-if st.button("Generate Design ✨"):
-    if not room_name:
-        st.error("Please enter a room name!")
-    else:
-        if gen_mode == "OpenAI DALL-E 3":
-            with st.spinner("DALL-E is designing..."):
-                try:
-                    prompt = f"Interior design of a {room_name} with {theme_color} accents, photorealistic."
-                    response = client.images.generate(model="dall-e-3", prompt=prompt, n=1)
-                    st.image(response.data[0].url)
-                except Exception as e:
-                    st.error(f"API Error: {e}")
-        
+# Action Button
+if st.button("Generate Design", use_container_width=True):
+    if mode == "DALL-E 3 (High Detail)":
+        if not api_key:
+            st.error("Please provide an API Key in the sidebar for DALL-E.")
         else:
-            with st.spinner("GAN is synthesizing..."):
-                img = run_gan_inference()
-                st.image(img, caption="GAN Generated Base Layout (Prototype Mode)", use_container_width=True)
-                st.info("Note: This GAN is initialized with random weights for demonstration.")
+            client = OpenAI(api_key=api_key)
+            with st.spinner("Generating High-Res Interior..."):
+                response = client.images.generate(
+                    model="dall-e-3",
+                    prompt=f"A photorealistic {room} interior design with {color} lighting.",
+                    n=1
+                )
+                st.image(response.data[0].url, caption=f"DALL-E 3: {room}")
+    
+    else:
+        with st.spinner("GAN is synthesizing textures..."):
+            gan_result = run_gan_inference()
+            st.image(gan_result, caption="GAN Generated Structural Concept", use_container_width=True)
+            st.info("The GAN generates raw structural patterns. For photorealism, use DALL-E mode.")
