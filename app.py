@@ -1,143 +1,110 @@
 import streamlit as st
+from openai import OpenAI
+import plotly.graph_objects as go
 import pandas as pd
-import datetime
-
-# Error Prevention: Check if plotly is installed
-try:
-    import plotly.express as px
-    import plotly.graph_objects as go
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
 
 # Page config
 st.set_page_config(
-    page_title="🏠 Luxury Interiors",
+    page_title="🏠 AI Interior Design Studio", 
     page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom Luxury CSS
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500&display=swap');
-    .main-header {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        padding: 2rem;
-        border-radius: 20px;
-        text-align: center;
-        color: white;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-    }
-    .luxury-title { font-family: 'Playfair Display', serif; font-size: 3rem; margin: 0; }
-    .subtitle { font-family: 'Inter', sans-serif; font-size: 1.2rem; opacity: 0.9; margin-top: 1rem; }
-    .product-card { 
-        background: linear-gradient(145deg, #ffffff, #f8f9ff); 
-        border-radius: 15px; 
-        padding: 1.5rem; 
-        margin: 1rem 0; 
-        border: 1px solid #e1e8ed;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    }
-    .price-tag { 
-        background: linear-gradient(45deg, #ffd700, #ffed4e); 
-        color: #1a1a1a; 
-        padding: 10px 20px; 
-        border-radius: 25px; 
-        font-weight: bold; 
-        font-size: 1.2rem;
-    }
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;500&display=swap');
+.main-header { 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 2.5rem; 
+    border-radius: 20px; 
+    text-align: center; 
+    color: white; 
+    margin-bottom: 2rem;
+    box-shadow: 0 15px 30px rgba(102,126,234,0.3);
+}
+.title { font-family: 'Playfair Display', serif; font-size: 3rem; margin: 0; }
+.subtitle { font-size: 1.1rem; opacity: 0.9; margin-top: 0.5rem; }
+.room-card { 
+    background: white; 
+    border-radius: 15px; 
+    padding: 1.5rem; 
+    margin: 1rem 0; 
+    border: 1px solid #e1e8ed;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+.ai-image { border-radius: 15px; width: 100%; height: auto; }
 </style>
 """, unsafe_allow_html=True)
 
-# Fixed Products Data
-products = [
-    {"id": 1, "name": "Velvet Chesterfield Sofa", "price": 2999, "category": "Sofas", "emoji": "🛋️", "stock": 12},
-    {"id": 2, "name": "Modern L-Shape Sofa", "price": 2499, "category": "Sofas", "emoji": "🛋️", "stock": 8},
-    {"id": 3, "name": "Luxury Leather Sectional", "price": 4999, "category": "Sofas", "emoji": "🛋️", "stock": 5},
-    {"id": 4, "name": "Marble Coffee Table", "price": 899, "category": "Tables", "emoji": "☕", "stock": 15},
-    {"id": 5, "name": "Oak Dining Table", "price": 1799, "category": "Tables", "emoji": "🍽️", "stock": 10},
-    {"id": 6, "name": "Glass Side Table", "price": 299, "category": "Tables", "emoji": "☕", "stock": 20},
-    {"id": 7, "name": "Eames Lounge Chair", "price": 1299, "category": "Chairs", "emoji": "🪑", "stock": 18},
-    {"id": 8, "name": "Velvet Armchair", "price": 799, "category": "Chairs", "emoji": "🪑", "stock": 25},
-    {"id": 9, "name": "Bar Stool Set", "price": 599, "category": "Chairs", "emoji": "🪑", "stock": 30},
-    {"id": 10, "name": "Crystal Chandelier", "price": 2499, "category": "Lighting", "emoji": "💡", "stock": 6},
-    {"id": 11, "name": "Modern Floor Lamp", "price": 399, "category": "Lighting", "emoji": "💡", "stock": 22},
-    {"id": 12, "name": "Wall Sconces", "price": 299, "category": "Lighting", "emoji": "💡", "stock": 15},
-    {"id": 13, "name": "Persian Rug 8x10", "price": 2999, "category": "Decor", "emoji": "🧳", "stock": 4},
-    {"id": 14, "name": "Wall Art Set", "price": 599, "category": "Decor", "emoji": "🎨", "stock": 12},
-    {"id": 15, "name": "Marble Vase", "price": 199, "category": "Decor", "emoji": "🪴", "stock": 35}
-]
-
-# Initialize session state
-if 'cart' not in st.session_state: st.session_state.cart = []
-if 'total' not in st.session_state: st.session_state.total = 0.0
+# Initialize OpenAI
+api_ready = False
+if "OPENAI_API_KEY" in st.secrets:
+    try:
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        api_ready = True
+    except Exception as e:
+        st.error(f"OpenAI Initialization Error: {e}")
+else:
+    st.warning("⚠️ OpenAI API Key missing! Add it to Streamlit Secrets to enable AI Generation.")
 
 # Header
-st.markdown("""<div class="main-header"><h1 class="luxury-title">🏠 Luxury Interiors</h1><p class="subtitle">Premium Furniture & Home Decor Collection</p></div>""", unsafe_allow_html=True)
+st.markdown("""<div class="main-header"><h1 class="title">🏠 AI Interior Design Studio</h1><p class="subtitle">DALL-E 3 Powered Room Planning & Visualization</p></div>""", unsafe_allow_html=True)
 
-# Metrics
-col1, col2, col3, col4 = st.columns(4)
-with col1: st.markdown(f'<div class="metric-card"><h3>Products</h3><h2>15</h2></div>', unsafe_allow_html=True)
-with col2: st.markdown(f'<div class="metric-card"><h3>Cart</h3><h2>{len(st.session_state.cart)}</h2></div>', unsafe_allow_html=True)
-with col3: st.markdown(f'<div class="metric-card"><h3>Total</h3><h2>${st.session_state.total:,.0f}</h2></div>', unsafe_allow_html=True)
-with col4: st.markdown(f'<div class="metric-card"><h3>Stock</h3><h2>{sum(p["stock"] for p in products)}</h2></div>', unsafe_allow_html=True)
+# Main Layout
+col1, col2 = st.columns([1, 2])
 
-# Sidebar
-page = st.sidebar.selectbox("Choose Page", ["Catalog", "Cart", "Checkout", "Analytics"])
-
-if page == "Catalog":
-    st.header("✨ Premium Collection")
-    search_term = st.text_input("🔍 Search products...")
-    filtered = [p for p in products if not search_term or search_term.lower() in p['name'].lower()]
+with col1:
+    st.subheader("🎨 Design Parameters")
+    rooms = ["Living Room", "Bedroom", "Drawing Room", "TV Lounge", "Kitchen", "Dining Room", "Home Office", "Gaming Room"]
+    selected_room = st.selectbox("🏠 Select Room", rooms)
     
-    for product in filtered:
-        c1, c2, c3 = st.columns([1, 4, 2])
-        with c2: st.markdown(f'<div class="product-card"><h3>{product["emoji"]} {product["name"]}</h3><p>{product["category"]}</p></div>', unsafe_allow_html=True)
-        with c3:
-            st.markdown(f"<div class='price-tag'>${product['price']:,}</div>", unsafe_allow_html=True)
-            if st.button("🛒 Add", key=f"add_{product['id']}"):
-                st.session_state.cart.append(product)
-                st.session_state.total += product['price']
-                st.rerun()
+    budgets = ["Economy (Under $2K)", "Standard ($2K-$10K)", "Luxury ($10K-$50K)", "Ultra-Luxury ($50K+)"]
+    selected_budget = st.selectbox("💰 Budget Level", budgets)
+    
+    style = st.selectbox("Design Style", ["Modern", "Minimalist", "Luxury", "Bohemian", "Industrial", "Scandinavian"])
+    primary_color = st.color_picker("🎨 Theme Color", "#3498db")
+    
+    generate_btn = st.button("✨ Generate AI Design", type="primary", use_container_width=True)
 
-elif page == "Cart":
-    st.header("🛒 Shopping Cart")
-    if not st.session_state.cart:
-        st.info("Your cart is empty.")
+with col2:
+    if generate_btn and api_ready:
+        prompt = f"Photorealistic 8K interior design of a {selected_room} in {style} style. Budget: {selected_budget}. Color theme: {primary_color}. High-end 3D render, professional lighting."
+        
+        with st.spinner("🎨 Creating your masterpiece..."):
+            try:
+                response = client.images.generate(
+                    model="dall-e-3",
+                    prompt=prompt,
+                    size="1024x1024",
+                    quality="hd",
+                    n=1
+                )
+                image_url = response.data[0].url
+                st.markdown(f'<div class="room-card"><h3>✅ {selected_room} Concept</h3><img src="{image_url}" class="ai-image"></div>', unsafe_allow_html=True)
+                st.success("Design Generated!")
+            except Exception as e:
+                st.error(f"Generation failed: {e}")
+    elif generate_btn and not api_ready:
+        st.error("API Key not found. Please check your secrets.toml.")
     else:
-        for item in st.session_state.cart:
-            st.write(f"• {item['name']} - ${item['price']:,}")
-        if st.button("🗑️ Clear Cart"):
-            st.session_state.cart = []
-            st.session_state.total = 0.0
-            st.rerun()
+        st.info("Set your preferences on the left and click 'Generate' to see the AI concept.")
 
-elif page == "Checkout":
-    st.header("💳 Checkout")
-    name = st.text_input("Full Name")
-    if st.button("✅ Place Order") and name:
-        st.balloons()
-        st.success(f"Order placed for {name}!")
-        st.session_state.cart = []
-        st.session_state.total = 0.0
+# Session State for Saved Designs
+if 'designs' not in st.session_state:
+    st.session_state.designs = []
 
-elif page == "Analytics":
-    st.header("📊 Business Analytics")
-    if not PLOTLY_AVAILABLE:
-        st.error("Plotly is missing. Please ensure 'plotly' is in your requirements.txt and reboot the app.")
-    else:
-        df = pd.DataFrame(products)
-        fig1 = px.pie(df, names='category', values='stock', title="Stock by Category")
-        st.plotly_chart(fig1, use_container_width=True)
-        fig2 = px.bar(df, x='category', y='price', title="Price by Category")
-        st.plotly_chart(fig2, use_container_width=True)
+st.divider()
+st.subheader("💾 Saved Projects")
+
+if st.button("💾 Save Current Configuration"):
+    new_design = {"room": selected_room, "style": style, "budget": selected_budget}
+    st.session_state.designs.append(new_design)
+    st.toast("Design configuration saved!")
+
+if st.session_state.designs:
+    for i, d in enumerate(st.session_state.designs):
+        st.write(f"{i+1}. **{d['room']}** ({d['style']}) - Budget: {d['budget']}")
+else:
+    st.write("No projects saved yet.")
