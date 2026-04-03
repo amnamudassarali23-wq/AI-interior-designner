@@ -1,356 +1,237 @@
 import streamlit as st
-import json
 import pandas as pd
-from streamlit_option_menu import option_menu
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Page config
+# Page config - Fixed
 st.set_page_config(
-    page_title="Luxury Interiors",
+    page_title="🏠 Luxury Interiors",
     page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Luxury Interior Design Theme
+# Custom CSS - Fixed & Optimized
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500&display=swap');
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500&display=swap');
     
-    .main-header {
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-        padding: 2rem;
-        border-radius: 20px;
-        text-align: center;
-        color: white;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-    }
-    
-    .luxury-title {
-        font-family: 'Playfair Display', serif;
-        font-size: 3.5rem;
-        margin: 0;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-    
-    .subtitle {
-        font-family: 'Inter', sans-serif;
-        font-size: 1.3rem;
-        opacity: 0.9;
-        margin-top: 1rem;
-    }
-    
-    .product-card {
-        background: linear-gradient(145deg, #ffffff, #f0f4f8);
-        border-radius: 20px;
-        padding: 2rem;
-        margin: 1rem 0;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        border: 1px solid rgba(255,255,255,0.5);
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-    
-    .product-card:hover {
-        transform: translateY(-10px);
-        box-shadow: 0 25px 50px rgba(0,0,0,0.15);
-    }
-    
-    .price-tag {
-        background: linear-gradient(45deg, #ffd700, #ffed4e);
-        color: #1a1a1a;
-        padding: 12px 24px;
-        border-radius: 50px;
-        font-weight: bold;
-        font-size: 1.4rem;
-        box-shadow: 0 8px 20px rgba(255,215,0,0.3);
-    }
-    
-    .add-to-cart-btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 15px 30px;
-        border-radius: 50px;
-        font-size: 1.1rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s;
-        width: 100%;
-        margin-top: 1rem;
-    }
-    
-    .add-to-cart-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 15px 30px rgba(102,126,234,0.4);
-    }
-    
-    .metric-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 20px;
-        color: white;
-    }
-    
-    .stMetric > label {
-        color: white !important;
-        font-size: 1.2rem;
-    }
-    
-    .stMetric > div > div {
-        color: white !important;
-        font-size: 2.5rem;
-        font-weight: bold;
-    }
-    </style>
+.main-header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    padding: 2rem;
+    border-radius: 20px;
+    text-align: center;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+}
+.luxury-title { font-family: 'Playfair Display', serif; font-size: 3rem; margin: 0; }
+.subtitle { font-family: 'Inter', sans-serif; font-size: 1.2rem; opacity: 0.9; margin-top: 1rem; }
+.product-card { 
+    background: linear-gradient(145deg, #ffffff, #f8f9ff); 
+    border-radius: 15px; 
+    padding: 1.5rem; 
+    margin: 1rem 0; 
+    border: 1px solid #e1e8ed;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
+.price-tag { 
+    background: linear-gradient(45deg, #ffd700, #ffed4e); 
+    color: #1a1a1a; 
+    padding: 10px 20px; 
+    border-radius: 25px; 
+    font-weight: bold; 
+    font-size: 1.2rem;
+}
+.add-cart-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border-radius: 25px !important;
+    padding: 12px 24px !important;
+    font-weight: 500 !important;
+    border: none !important;
+}
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 1.5rem;
+    border-radius: 15px;
+    color: white;
+    text-align: center;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# Load products
-@st.cache_data
-def load_products():
-    products_data = {
-        "sofas": [
-            {"id": 1, "name": "Velvet Chesterfield Sofa", "price": 2999, "category": "sofas", "image": "🛋️", "stock": 12},
-            {"id": 2, "name": "Modern L-Shape Sofa", "price": 2499, "category": "sofas", "image": "🛋️", "stock": 8},
-            {"id": 3, "name": "Luxury Leather Sectional", "price": 4999, "category": "sofas", "image": "🛋️", "stock": 5}
-        ],
-        "tables": [
-            {"id": 4, "name": "Marble Coffee Table", "price": 899, "category": "tables", "image": "☕", "stock": 15},
-            {"id": 5, "name": "Oak Dining Table", "price": 1799, "category": "tables", "image": "🍽️", "stock": 10},
-            {"id": 6, "name": "Glass Side Table", "price": 299, "category": "tables", "image": "☕", "stock": 20}
-        ],
-        "chairs": [
-            {"id": 7, "name": "Eames Lounge Chair", "price": 1299, "category": "chairs", "image": "🪑", "stock": 18},
-            {"id": 8, "name": "Velvet Armchair", "price": 799, "category": "chairs", "image": "🪑", "stock": 25},
-            {"id": 9, "name": "Bar Stool Set", "price": 599, "category": "chairs", "image": "🪑", "stock": 30}
-        ],
-        "lighting": [
-            {"id": 10, "name": "Crystal Chandelier", "price": 2499, "category": "lighting", "image": "💡", "stock": 6},
-            {"id": 11, "name": "Modern Floor Lamp", "price": 399, "category": "lighting", "image": "💡", "stock": 22},
-            {"id": 12, "name": "Wall Sconces (Pair)", "price": 299, "category": "lighting", "image": "💡", "stock": 15}
-        ],
-        "decor": [
-            {"id": 13, "name": "Persian Rug 8x10", "price": 2999, "category": "decor", "image": "🧳", "stock": 4},
-            {"id": 14, "name": "Wall Art Set", "price": 599, "category": "decor", "image": "🎨", "stock": 12},
-            {"id": 15, "name": "Marble Vase", "price": 199, "category": "decor", "image": "🪴", "stock": 35}
-        ]
-    }
-    return [item for sublist in products_data.values() for item in sublist]
+# Fixed Products Data - No JSON issues
+products = [
+    {"id": 1, "name": "Velvet Chesterfield Sofa", "price": 2999, "category": "Sofas", "emoji": "🛋️", "stock": 12},
+    {"id": 2, "name": "Modern L-Shape Sofa", "price": 2499, "category": "Sofas", "emoji": "🛋️", "stock": 8},
+    {"id": 3, "name": "Luxury Leather Sectional", "price": 4999, "category": "Sofas", "emoji": "🛋️", "stock": 5},
+    {"id": 4, "name": "Marble Coffee Table", "price": 899, "category": "Tables", "emoji": "☕", "stock": 15},
+    {"id": 5, "name": "Oak Dining Table", "price": 1799, "category": "Tables", "emoji": "🍽️", "stock": 10},
+    {"id": 6, "name": "Glass Side Table", "price": 299, "category": "Tables", "emoji": "☕", "stock": 20},
+    {"id": 7, "name": "Eames Lounge Chair", "price": 1299, "category": "Chairs", "emoji": "🪑", "stock": 18},
+    {"id": 8, "name": "Velvet Armchair", "price": 799, "category": "Chairs", "emoji": "🪑", "stock": 25},
+    {"id": 9, "name": "Bar Stool Set", "price": 599, "category": "Chairs", "emoji": "🪑", "stock": 30},
+    {"id": 10, "name": "Crystal Chandelier", "price": 2499, "category": "Lighting", "emoji": "💡", "stock": 6},
+    {"id": 11, "name": "Modern Floor Lamp", "price": 399, "category": "Lighting", "emoji": "💡", "stock": 22},
+    {"id": 12, "name": "Wall Sconces", "price": 299, "category": "Lighting", "emoji": "💡", "stock": 15},
+    {"id": 13, "name": "Persian Rug 8x10", "price": 2999, "category": "Decor", "emoji": "🧳", "stock": 4},
+    {"id": 14, "name": "Wall Art Set", "price": 599, "category": "Decor", "emoji": "🎨", "stock": 12},
+    {"id": 15, "name": "Marble Vase", "price": 199, "category": "Decor", "emoji": "🪴", "stock": 35}
+]
 
-products = load_products()
-
-# Session state
+# Initialize session state - Fixed
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 if 'total' not in st.session_state:
-    st.session_state.total = 0
-if 'selected' not in st.session_state:
-    st.session_state.selected = "catalog"
-
-# Sidebar Navigation
-with st.sidebar:
-    st.markdown("## 🏠 Luxury Interiors")
-    selected = option_menu(
-        menu_title=None,
-        options=["🏠 Catalog", "🛒 Cart", "💳 Checkout", "📊 Dashboard"],
-        icons=["house", "cart", "credit-card", "bar-chart"],
-        menu_icon="cast",
-        default_index=0,
-        styles={
-            "container": {"padding": "0!important", "background": "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)"},
-            "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0!important", "--hover-color": "#eee"},
-            "nav-link-selected": {"background": "rgba(255, 255, 255, 0.2)"},
-        }
-    )
+    st.session_state.total = 0.0
 
 # Header
 st.markdown("""
-    <div class="main-header">
-        <h1 class="luxury-title">Luxury Interiors</h1>
-        <p class="subtitle">Premium Furniture & Home Decor for Discerning Tastes</p>
-    </div>
+<div class="main-header">
+    <h1 class="luxury-title">🏠 Luxury Interiors</h1>
+    <p class="subtitle">Premium Furniture & Home Decor Collection</p>
+</div>
 """, unsafe_allow_html=True)
 
-# Metrics
+# Luxury Metrics - Fixed
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>Total Products</label>
-                <div>{}</div>
-            </div>
-        </div>
-        """.format(len(products)),
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div class="metric-card">
+        <h3>Total Products</h3>
+        <h2 style='color: white; font-size: 2.5rem;'>15</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
 with col2:
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>Cart Items</label>
-                <div>{}</div>
-            </div>
-        </div>
-        """.format(len(st.session_state.cart)),
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div class="metric-card">
+        <h3>Cart Items</h3>
+        <h2 style='color: white; font-size: 2.5rem;'>{len(st.session_state.cart)}</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
 with col3:
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>Order Total</label>
-                <div>${:,.2f}</div>
-            </div>
-        </div>
-        """.format(st.session_state.total),
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div class="metric-card">
+        <h3>Order Total</h3>
+        <h2 style='color: white; font-size: 2.5rem;'>${st.session_state.total:,.0f}</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
 with col4:
     total_stock = sum(p['stock'] for p in products)
-    st.markdown(
-        """
-        <div class="metric-container">
-            <div class="stMetric">
-                <label>In Stock</label>
-                <div>{}</div>
-            </div>
-        </div>
-        """.format(total_stock),
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div class="metric-card">
+        <h3>In Stock</h3>
+        <h2 style='color: white; font-size: 2.5rem;'>{total_stock}</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Page Content
-if selected == "🏠 Catalog":
+# Sidebar Navigation - Fixed (No external dependency)
+st.sidebar.title("🏠 Navigation")
+page = st.sidebar.selectbox("Choose Page", ["Catalog", "Cart", "Checkout", "Analytics"])
+
+# Main Pages
+if page == "Catalog":
     st.header("✨ Premium Collection")
     
     # Filters
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([3, 2])
     with col1:
-        search = st.text_input("🔍 Search products...", key="search")
+        search_term = st.text_input("🔍 Search products...")
     with col2:
-        price_range = st.slider("💰 Price Range", 0, 5000, (0, 5000), key="price_range")
+        min_price, max_price = st.slider("💰 Price Range", 0, 5000, (0, 5000))
     
     # Filter products
-    filtered_products = [
-        p for p in products 
-        if (not search or search.lower() in p['name'].lower()) and 
-           price_range[0] <= p['price'] <= price_range[1]
-    ]
+    filtered = [p for p in products 
+                if (not search_term or search_term.lower() in p['name'].lower())
+                and min_price <= p['price'] <= max_price]
     
-    # Category tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🛋️ Sofas", "☕ Tables", "🪑 Chairs", "💡 Lighting", "🎨 Decor"])
+    # Category selection
+    category = st.selectbox("Select Category", ["All"] + list(set(p['category'] for p in products)))
+    if category != "All":
+        filtered = [p for p in filtered if p['category'] == category]
     
-    with tab1:
-        sofas = [p for p in filtered_products if p['category'] == 'sofas']
-        display_products(sofas)
-    
-    with tab2:
-        tables = [p for p in filtered_products if p['category'] == 'tables']
-        display_products(tables)
-    
-    with tab3:
-        chairs = [p for p in filtered_products if p['category'] == 'chairs']
-        display_products(chairs)
-    
-    with tab4:
-        lighting = [p for p in filtered_products if p['category'] == 'lighting']
-        display_products(lighting)
-    
-    with tab5:
-        decor = [p for p in filtered_products if p['category'] == 'decor']
-        display_products(decor)
+    # Display products
+    if filtered:
+        for product in filtered:
+            col1, col2, col3 = st.columns([1, 4, 2])
+            with col1:
+                st.markdown(f"**{product['emoji']}**")
+            with col2:
+                st.markdown(f"""
+                <div class="product-card">
+                    <h3>{product['name']}</h3>
+                    <p>📦 In Stock: {product['stock']} | 🏷️ {product['category']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"<div class='price-tag'>${product['price']:,.0f}</div>", unsafe_allow_html=True)
+                if st.button("🛒 Add to Cart", key=f"add_{product['id']}", help=f"Add {product['name']}"):
+                    st.session_state.cart.append(product)
+                    st.session_state.total += product['price']
+                    st.success(f"✅ {product['name']} added!")
+                    st.rerun()
+    else:
+        st.info("🔍 No products found. Try different filters.")
 
-elif selected == "🛒 Cart":
+elif page == "Cart":
     st.header("🛒 Shopping Cart")
     if not st.session_state.cart:
         st.info("👋 Your cart is empty. Start shopping!")
     else:
-        display_cart()
+        cart_df = pd.DataFrame(st.session_state.cart)
+        cart_df['Subtotal'] = cart_df['price']
+        st.dataframe(cart_df[['name', 'price', 'category', 'Subtotal']], use_container_width=True)
+        
+        st.markdown(f"### 💰 **Total: ${st.session_state.total:,.0f}**")
+        if st.button("🗑️ Clear Cart", type="secondary"):
+            st.session_state.cart = []
+            st.session_state.total = 0.0
+            st.rerun()
 
-elif selected == "💳 Checkout":
+elif page == "Checkout":
     st.header("💳 Secure Checkout")
     if not st.session_state.cart:
-        st.warning("🛒 Add items to cart first!")
+        st.warning("🛒 Your cart is empty!")
     else:
-        st.success(f"**Order Total: ${st.session_state.total:,.2f}**")
-        st.button("✅ Complete Order", type="primary", on_click=complete_order)
-
-elif selected == "📊 Dashboard":
-    st.header("📊 Sales Dashboard")
-    show_dashboard()
-
-# Helper Functions
-def display_products(products_list):
-    for product in products_list:
-        with st.container():
-            col1, col2, col3 = st.columns([1, 3, 1])
-            with col1:
-                st.markdown(f"### {product['image']}")
-            with col2:
-                st.markdown(f"""
-                    <div class="product-card">
-                        <h3>{product['name']}</h3>
-                        <p><strong>In Stock:</strong> {product['stock']} units</p>
-                    </div>
-                """, unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"""
-                    <div class="price-tag">${product['price']:,.2f}</div>
-                """, unsafe_allow_html=True)
-            
-            if st.button(f"🛒 Add to Cart", key=f"add_{product['id']}"):
-                add_to_cart(product)
-                st.rerun()
-
-def add_to_cart(product):
-    cart_item = next((item for item in st.session_state.cart if item['id'] == product['id']), None)
-    if cart_item:
-        cart_item['quantity'] += 1
-    else:
-        st.session_state.cart.append({'id': product['id'], **product, 'quantity': 1})
-    st.session_state.total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
-    st.success(f"✅ {product['name']} added to cart!")
-
-def display_cart():
-    for i, item in enumerate(st.session_state.cart):
-        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+        st.success(f"**Order Summary**")
+        for item in st.session_state.cart:
+            st.write(f"• {item['name']} - ${item['price']:,.0f}")
+        
+        st.markdown(f"### 💰 **Grand Total: ${st.session_state.total:,.0f}**")
+        
+        col1, col2 = st.columns(2)
         with col1:
-            st.write(f"**{item['name']}**")
+            name = st.text_input("Full Name")
+            email = st.text_input("Email")
         with col2:
-            st.write(f"Qty: {item['quantity']}")
-        with col3:
-            st.write(f"${item['price']:,.2f}")
-        with col4:
-            st.write(f"${(item['price'] * item['quantity']):,.2f}")
-            if st.button("❌", key=f"remove_{i}"):
-                st.session_state.cart.pop(i)
-                st.session_state.total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
-                st.rerun()
+            address = st.text_area("Delivery Address")
+            phone = st.text_input("Phone")
+        
+        if st.button("✅ Place Order", type="primary"):
+            st.balloons()
+            st.success(f"🎉 Order placed successfully for ${name}!")
+            st.session_state.cart = []
+            st.session_state.total = 0.0
+            st.rerun()
 
-def complete_order():
-    st.session_state.cart = []
-    st.session_state.total = 0
-    st.balloons()
-    st.success("🎉 Order placed successfully! Thank you for shopping with Luxury Interiors!")
-
-def show_dashboard():
+elif page == "Analytics":
+    st.header("📊 Business Analytics")
     df = pd.DataFrame(products)
-    fig = px.scatter(df, x='price', y='stock', size='price', 
-                    color='category', hover_name='name',
-                    title="Product Analytics")
-    st.plotly_chart(fig, use_container_width=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        fig_pie = px.pie(df, names='category', values='stock')
+        fig_pie = px.pie(df, names='category', values='stock', title="Stock by Category")
         st.plotly_chart(fig_pie, use_container_width=True)
+    
     with col2:
-        fig_bar = px.bar(df, x='category', y='price', title="Avg Price by Category")
+        fig_bar = px.bar(df, x='category', y='price', title="Average Price by Category")
         st.plotly_chart(fig_bar, use_container_width=True)
+    
+    st.subheader("💰 Price Distribution")
+    fig_hist = px.histogram(df, x='price', nbins=10, title="Product Price Distribution")
+    st.plotly_chart(fig_hist, use_container_width=True)
