@@ -1,21 +1,18 @@
-# 🏠 AI Interior Designer
+# 🏠 Luxury Interiors - Streamlit Ecommerce
 
-This project is a Streamlit-based AI application that generates fully designed interior room images using a pretrained Stable Diffusion XL model.
+## 🚀 Quick Deploy
+1. Fork this repo
+2. Go to [streamlit.io](https://share.streamlit.io)
+3. Deploy → Select repo → `app.py`
 
-## Features
-- Room type selection (Bedroom, Study Room, Living Room, etc.)
-- Room shape and dimensions input
-- Budget selection (lower, middle, higher)
-- Custom color theme input
-- AI-generated photorealistic interior design image
+## 📱 Features
+- Luxury interior design theme
+- 15 premium products
+- Real-time cart & checkout
+- Interactive analytics dashboard
+- Responsive design
 
-## Technologies Used
-- Streamlit
-- PyTorch
-- Diffusers (Stable Diffusion XL)
-- Pillow
-
-## How to Run
+## 🛠️ Local Run
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
