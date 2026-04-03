@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
-# Import plotly with a fallback check
+import datetime
+
+# Error Prevention: Check if plotly is installed
 try:
     import plotly.express as px
     import plotly.graph_objects as go
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
-
-from datetime import datetime
 
 # Page config
 st.set_page_config(
@@ -59,7 +59,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Data
+# Fixed Products Data
 products = [
     {"id": 1, "name": "Velvet Chesterfield Sofa", "price": 2999, "category": "Sofas", "emoji": "🛋️", "stock": 12},
     {"id": 2, "name": "Modern L-Shape Sofa", "price": 2499, "category": "Sofas", "emoji": "🛋️", "stock": 8},
@@ -78,13 +78,21 @@ products = [
     {"id": 15, "name": "Marble Vase", "price": 199, "category": "Decor", "emoji": "🪴", "stock": 35}
 ]
 
+# Initialize session state
 if 'cart' not in st.session_state: st.session_state.cart = []
 if 'total' not in st.session_state: st.session_state.total = 0.0
 
 # Header
-st.markdown("""<div class="main-header"><h1 class="luxury-title">🏠 Luxury Interiors</h1><p class="subtitle">Premium Furniture & Home Decor</p></div>""", unsafe_allow_html=True)
+st.markdown("""<div class="main-header"><h1 class="luxury-title">🏠 Luxury Interiors</h1><p class="subtitle">Premium Furniture & Home Decor Collection</p></div>""", unsafe_allow_html=True)
 
-# Navigation
+# Metrics
+col1, col2, col3, col4 = st.columns(4)
+with col1: st.markdown(f'<div class="metric-card"><h3>Products</h3><h2>15</h2></div>', unsafe_allow_html=True)
+with col2: st.markdown(f'<div class="metric-card"><h3>Cart</h3><h2>{len(st.session_state.cart)}</h2></div>', unsafe_allow_html=True)
+with col3: st.markdown(f'<div class="metric-card"><h3>Total</h3><h2>${st.session_state.total:,.0f}</h2></div>', unsafe_allow_html=True)
+with col4: st.markdown(f'<div class="metric-card"><h3>Stock</h3><h2>{sum(p["stock"] for p in products)}</h2></div>', unsafe_allow_html=True)
+
+# Sidebar
 page = st.sidebar.selectbox("Choose Page", ["Catalog", "Cart", "Checkout", "Analytics"])
 
 if page == "Catalog":
@@ -93,41 +101,43 @@ if page == "Catalog":
     filtered = [p for p in products if not search_term or search_term.lower() in p['name'].lower()]
     
     for product in filtered:
-        col1, col2, col3 = st.columns([1, 4, 2])
-        with col2:
-            st.markdown(f'<div class="product-card"><h3>{product["emoji"]} {product["name"]}</h3><p>{product["category"]}</p></div>', unsafe_allow_html=True)
-        with col3:
+        c1, c2, c3 = st.columns([1, 4, 2])
+        with c2: st.markdown(f'<div class="product-card"><h3>{product["emoji"]} {product["name"]}</h3><p>{product["category"]}</p></div>', unsafe_allow_html=True)
+        with c3:
             st.markdown(f"<div class='price-tag'>${product['price']:,}</div>", unsafe_allow_html=True)
-            if st.button("🛒 Add", key=f"btn_{product['id']}"):
+            if st.button("🛒 Add", key=f"add_{product['id']}"):
                 st.session_state.cart.append(product)
                 st.session_state.total += product['price']
-                st.toast(f"Added {product['name']}!")
+                st.rerun()
 
 elif page == "Cart":
-    st.header("🛒 Your Cart")
+    st.header("🛒 Shopping Cart")
     if not st.session_state.cart:
-        st.info("Empty cart.")
+        st.info("Your cart is empty.")
     else:
         for item in st.session_state.cart:
-            st.write(f"• {item['name']} - ${item['price']}")
-        st.metric("Total Bill", f"${st.session_state.total:,.2f}")
-        if st.button("Clear Cart"):
+            st.write(f"• {item['name']} - ${item['price']:,}")
+        if st.button("🗑️ Clear Cart"):
             st.session_state.cart = []
             st.session_state.total = 0.0
             st.rerun()
 
+elif page == "Checkout":
+    st.header("💳 Checkout")
+    name = st.text_input("Full Name")
+    if st.button("✅ Place Order") and name:
+        st.balloons()
+        st.success(f"Order placed for {name}!")
+        st.session_state.cart = []
+        st.session_state.total = 0.0
+
 elif page == "Analytics":
     st.header("📊 Business Analytics")
     if not PLOTLY_AVAILABLE:
-        st.error("Plotly is not installed. Please check your requirements.txt file.")
+        st.error("Plotly is missing. Please ensure 'plotly' is in your requirements.txt and reboot the app.")
     else:
         df = pd.DataFrame(products)
-        fig = px.pie(df, names='category', values='stock', title="Inventory Distribution")
-        st.plotly_chart(fig, use_container_width=True)
-
-elif page == "Checkout":
-    st.header("💳 Checkout")
-    name = st.text_input("Name")
-    if st.button("Complete Order") and name:
-        st.balloons()
-        st.success(f"Thank you, {name}!")
+        fig1 = px.pie(df, names='category', values='stock', title="Stock by Category")
+        st.plotly_chart(fig1, use_container_width=True)
+        fig2 = px.bar(df, x='category', y='price', title="Price by Category")
+        st.plotly_chart(fig2, use_container_width=True)
